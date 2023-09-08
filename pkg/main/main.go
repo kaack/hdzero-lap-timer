@@ -63,17 +63,23 @@ func main() {
 	fmt.Printf("%v\n", config)
 
 	dvr, _ := gocv.OpenVideoCapture(videoPath)
-	window := gocv.NewWindow("HDZero DVR")
+	dvrWindow := gocv.NewWindow("HDZero DVR")
+	binaryWindow := gocv.NewWindow("Binary Image")
+
+	width := 240
+	height := 180
 
 	img := gocv.NewMat()
+	resized := gocv.NewMat()
 	dvr.Read(&img)
+	gocv.Resize(img, &resized, image.Pt(width, height), 0, 0, gocv.InterpolationLinear)
 
 	var gates []*Gate
 
 	for _, gateConfig := range config.Gates {
 		gates = append(gates, NewGate(
 			gateConfig.Name,
-			img,
+			resized,
 			GateColor2Scalar(gateConfig.Color.LowerBoundHSV),
 			GateColor2Scalar(gateConfig.Color.UpperBoundHSV),
 			gateConfig.Detection.MinMillisBetweenActivations,
@@ -82,7 +88,7 @@ func main() {
 			gateConfig.Detection.MinInactivationFrames))
 	}
 
-	detector := NewDetector(img, config.FramesPerSec, config.PropellerMask.Width, config.PropellerMask.Height)
+	detector := NewDetector(resized, config.FramesPerSec, config.PropellerMask.Width, config.PropellerMask.Height)
 	timer := NewTimer()
 	for index, gate := range gates {
 		detector.AddGate(gate)
@@ -92,16 +98,21 @@ func main() {
 	lapsMsg := fmt.Sprintf("Lap: 0, Time: 0")
 	transitionsMsg := fmt.Sprintf("Transition: ... -> ... , Time: 0")
 
+	var frameStart time.Time
+	var frameStop time.Time
 	for {
 		if ok := dvr.Read(&img); !ok {
 			break
 		}
+		frameStart = time.Now()
+		gocv.Resize(img, &resized, image.Pt(240, 180), 0, 0, gocv.InterpolationArea)
 
-		if detection := detector.Detect(&img, window); detection != nil {
+		if detection := detector.Detect(&resized, binaryWindow); detection != nil {
 			timer.AddDetection(detection)
 			if lastLap := timer.LastLap(); lastLap != nil {
 				lastLapTime := time.Duration(detector.MillisPerFrame()*lastLap.Frames()) * time.Millisecond
 				lapsMsg = fmt.Sprintf("Lap: %d, Time: %v, Gate: %s", timer.LapsCount(), lastLapTime, lastLap.Gate().Name)
+
 			}
 
 			if lastTransition := timer.LastTransition(); lastTransition != nil {
@@ -111,17 +122,25 @@ func main() {
 				transitionsMsg = fmt.Sprintf("Transition: %s -> ... , Time: 0", lastDetection.Gate.Name)
 			}
 
-			fmt.Printf("%v\n", detection)
+			fmt.Println(lapsMsg)
+			fmt.Println(transitionsMsg)
+			fmt.Printf("%v\n\n", detection)
 		}
 
-		gocv.PutText(&img, lapsMsg, image.Pt(300, 100), gocv.FontHersheyDuplex, 1, color.RGBA{R: 255, G: 255, B: 255}, 2)
-		gocv.PutText(&img, transitionsMsg, image.Pt(300, 150), gocv.FontHersheyDuplex, 1, color.RGBA{R: 255, G: 255, B: 255}, 2)
+		frameStop = time.Now()
 
-		window.IMShow(img)
-		window.WaitKey(1)
+		duration := frameStop.Sub(frameStart)
+
+		gocv.PutText(&img, lapsMsg, image.Pt(300, 100), gocv.FontHersheyDuplex, 1, color.RGBA{R: 255, G: 255, B: 255}, 1)
+		gocv.PutText(&img, transitionsMsg, image.Pt(300, 150), gocv.FontHersheyDuplex, 1, color.RGBA{R: 255, G: 255, B: 255}, 1)
+		gocv.PutText(&img, fmt.Sprintf("Frame latency: %v", duration), image.Pt(300, 200), gocv.FontHersheyDuplex, 1, color.RGBA{R: 255, G: 255, B: 255}, 1)
+
+		dvrWindow.IMShow(img)
+		dvrWindow.WaitKey(1)
+
 	}
 
-	if err := window.Close(); err != nil {
+	if err := dvrWindow.Close(); err != nil {
 		panic(fmt.Errorf("could not close DVR window. %s", err.Error()))
 	}
 }

@@ -11,8 +11,8 @@ framesPerSec: 90
 # matches the color of a gate marker
 
 propellerMask:
-  width: 500
-  height: 300
+  width: 100
+  height: 100
 
 
 # This is a list of gates that make up the track
@@ -22,7 +22,7 @@ gates:
   - name: pink
     detection:
       minMillisBetweenActivations: 3000
-      minActivationValue: 50000
+      minActivationValue: 3000
       minActivationFrames: 10
       minInactivationFrames: 5
     color:
@@ -31,7 +31,7 @@ gates:
   - name: green
     detection:
       minMillisBetweenActivations: 3000
-      minActivationValue: 50000
+      minActivationValue: 3000
       minActivationFrames: 10
       minInactivationFrames: 5
     color:

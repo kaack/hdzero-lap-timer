@@ -10,28 +10,28 @@ import (
 )
 
 type StreamBuffer struct {
-	data           []float64
-	_headPos       int
-	_tailPos       int
-	_activeHeight  float64
-	_activeWidth   int
-	_inactiveWidth int
-	_lastData      float64
+	data                []float64
+	_headPos            int
+	_tailPos            int
+	_activationValue    float64
+	_activationFrames   int
+	_inactivationFrames int
+	_lastData           float64
 }
 
 func NewStreamBuffer(capacity int) *StreamBuffer {
 	buffer := StreamBuffer{
-		data:          make([]float64, capacity),
-		_headPos:      -1,
-		_tailPos:      -1,
-		_activeHeight: 0,
-		_activeWidth:  0,
-		_lastData:     0,
+		data:              make([]float64, capacity),
+		_headPos:          -1,
+		_tailPos:          -1,
+		_activationValue:  0,
+		_activationFrames: 0,
+		_lastData:         0,
 	}
 
 	return &buffer
 }
-func (s *StreamBuffer) Push(data float64, minActiveHeight float64, minActiveWidth int, minInactiveWidth int) (isPeak bool) {
+func (s *StreamBuffer) Push(data float64, minActivationValue float64, minActivationFrames int, minInactivationFrames int) (activation *Activation) {
 	if s._tailPos == -1 && s._headPos == -1 {
 		s._tailPos = 0
 		s._headPos = 0
@@ -43,25 +43,28 @@ func (s *StreamBuffer) Push(data float64, minActiveHeight float64, minActiveWidt
 	s.data[s._headPos] = data
 
 	if data <= 0 {
-		s._inactiveWidth += 1
+		s._inactivationFrames += 1
 	} else {
-		s._inactiveWidth = 0
+		s._inactivationFrames = 0
 	}
 
 	if data > 0 && data > s._lastData {
-		s._activeWidth += 1
-		s._activeHeight += data
+		s._activationFrames += 1
+		s._activationValue += data
 		s._lastData = data
 	}
 
-	if s._inactiveWidth > minInactiveWidth {
-		if s._activeHeight >= minActiveHeight && s._activeWidth >= minActiveWidth {
-			isPeak = true
-			fmt.Printf("peak: %v, aw: %d, ah: %d, iw: %d, value: %d\n", isPeak, s._activeWidth, int(s._activeHeight), s._inactiveWidth, int(data))
+	if s._inactivationFrames > minInactivationFrames {
+		if s._activationValue >= minActivationValue && s._activationFrames >= minActivationFrames {
+			activation = &Activation{
+				Frames: s._activationFrames,
+				Value:  s._activationValue,
+			}
+			fmt.Printf("activation(value: %d, frames: %d), inactivation(frames: %d)\n", int(s._activationValue), s._activationFrames, int(s._inactivationFrames))
 		}
 
-		s._activeWidth = 0
-		s._activeHeight = 0
+		s._activationFrames = 0
+		s._activationValue = 0
 		s._lastData = 0
 	}
 
@@ -69,7 +72,7 @@ func (s *StreamBuffer) Push(data float64, minActiveHeight float64, minActiveWidt
 		s._tailPos = (s._headPos + 1) % len(s.data)
 	}
 
-	return isPeak
+	return activation
 }
 
 func (s *StreamBuffer) Len() int {

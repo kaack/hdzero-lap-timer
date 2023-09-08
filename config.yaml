@@ -1,0 +1,40 @@
+
+# This is used for timing calculations
+# Since the timer counts frames, it needs to know
+# the number of frames per second to get real-time values
+# This value depends on the camera mode being used, e.g. HDZero 540p90
+framesPerSec: 90
+
+# This is used to mask the propellers if from the
+# bottom left and right corners
+# This is necessary only if the color of the props
+# matches the color of a gate marker
+
+propellerMask:
+  width: 500
+  height: 300
+
+
+# This is a list of gates that make up the track
+# The first gate is considered to be the "Start" gate,
+# and it's used as reference for counting laps
+gates:
+  - name: pink
+    detection:
+      minMillisBetweenActivations: 3000
+      minActivationValue: 50000
+      minActivationFrames: 10
+      minInactivationFrames: 5
+    color:
+      lowerBoundHSV: [ 150, 150, 150 ]
+      upperBoundHSV: [ 255, 255, 255 ]
+  - name: green
+    detection:
+      minMillisBetweenActivations: 3000
+      minActivationValue: 50000
+      minActivationFrames: 10
+      minInactivationFrames: 5
+    color:
+      lowerBoundHSV: [45, 45, 45]
+      upperBoundHSV: [50, 255, 255]
+

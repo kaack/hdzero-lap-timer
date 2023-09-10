@@ -103,19 +103,14 @@ func main() {
 	var announcedLap *Lap
 
 	frameCount := uint64(0)
-	var detectedGate *Gate
 	var peakDetected *Detection
 
 	gMat := gocv.NewMat()
-	dataChan := make(chan Point, 100)
+	dataChan := make(chan []Point, 100)
 	matChan := make(chan *gocv.Mat, 100)
-	go graph(dataChan, matChan, &gMat)
+	go graph(dataChan, matChan, &gMat, gates)
 
-	candidateDetections := map[*Gate][]*Detection{}
-	for _, gate := range gates {
-		candidateDetections[gate] = []*Detection{}
-	}
-
+Loop:
 	for {
 		select {
 		case nMat := <-matChan:
@@ -126,59 +121,30 @@ func main() {
 		default:
 
 			if ok := dvr.Read(&dvrImage); !ok {
-				break
+				break Loop
 			}
 
 			frameCount += 1
 			frameStart = time.Now()
 			gocv.Resize(dvrImage, &resizedImg, image.Pt(width, height), 0, 0, gocv.InterpolationArea)
 
-			detectedGate, peakDetected = detector.Detect(&resizedImg, &detectionImage, frameCount)
+			_, peakDetected = detector.Detect(&resizedImg, &detectionImage, frameCount)
 
 			if peakDetected != nil {
-				candidateDetections[peakDetected.Activation.Gate] = append(candidateDetections[peakDetected.Activation.Gate], peakDetected)
-			}
-
-			var actualDetection *Detection
-			if detectedGate == nil {
-				for _, gate := range gates {
-					if len(candidateDetections[gate]) > 0 {
-						lastCandidate := candidateDetections[gate][len(candidateDetections[gate])-1]
-
-						if frameCount-lastCandidate.FrameOffset > gate.Config.Detection.LagFrames {
-							var maxCandidateDetection *Detection
-							var maxCandidateValue float64
-							for _, candidateDetection := range candidateDetections[gate] {
-								if candidateDetection.Activation.Value > maxCandidateValue {
-									maxCandidateDetection = candidateDetection
-									maxCandidateValue = candidateDetection.Activation.Value
-								}
-							}
-
-							actualDetection = maxCandidateDetection
-							candidateDetections[gate] = []*Detection{}
-						}
-					}
-				}
-			}
-
-			if actualDetection != nil {
-				lastDetection := timer.LastDetectionByGate(actualDetection.Activation.Gate)
+				lastDetection := timer.LastDetectionByGate(peakDetected.Activation.Gate)
 				if lastDetection != nil {
-					framesBetweenPeaks := actualDetection.FrameOffset - lastDetection.FrameOffset
-					if framesBetweenPeaks < actualDetection.Activation.Gate.Config.Detection.MinFramesBetweenPeaks {
+					framesBetweenPeaks := peakDetected.FrameOffset - lastDetection.FrameOffset
+					if framesBetweenPeaks < peakDetected.Activation.Gate.Config.Detection.MinFramesBetweenPeaks {
 						// discard detection
-						actualDetection = nil
+						peakDetected = nil
 					}
 				}
 			}
 
-			if actualDetection != nil {
+			if peakDetected != nil {
+				fmt.Printf("%v\n", peakDetected)
 
-				//chartData.Push(float64(peakDetected.FrameOffset), peakDetected.Activation.Value)
-				fmt.Printf("%v\n", actualDetection)
-
-				timer.AddDetection(actualDetection)
+				timer.AddDetection(peakDetected)
 				if lastLap := timer.LastLap(); lastLap != nil {
 					lastLapTime := time.Duration(int64(detector.MillisPerFrame()*float64(lastLap.Frames()))) * time.Millisecond
 					lapsMsg = fmt.Sprintf("Lap: %d, Time: %v, Gate: %s", timer.LapsCount(), lastLapTime, lastLap.Gate().Name)
@@ -211,11 +177,11 @@ func main() {
 
 			}
 
-			if detectedGate != nil {
-				dataChan <- Point{float64(frameCount), float64(detectedGate._activeValue)}
-			} else {
-				dataChan <- Point{float64(frameCount), 0}
+			var points []Point
+			for _, gate := range gates {
+				points = append(points, Point{float64(frameCount), gate._sum4.First()})
 			}
+			dataChan <- points
 
 			frameStop = time.Now()
 			duration := frameStop.Sub(frameStart)

@@ -108,7 +108,7 @@ func (t *Detector) Detect(img *gocv.Mat, detectionMat *gocv.Mat, frameCount uint
 
 	gocv.FindNonZero(t._binaryImg, &t._nonZeroPixels)
 	var detectedGate *Gate
-	var detectedArea int
+
 	totalArea := t._nonZeroPixels.Total()
 	if totalArea > 0 {
 		// initialize histogram to zeroes
@@ -128,62 +128,71 @@ func (t *Detector) Detect(img *gocv.Mat, detectionMat *gocv.Mat, frameCount uint
 			}
 		}
 
-		detectedArea = 0
+		detectedArea := 0
 		for gate, pixelCount := range t._pixelsByGate {
+			gate._activeValue = pixelCount
+			gate._activeArea = pixelCount
+			gate._sum0.Push(float64(pixelCount))
+			gate._sum1.Push(gate._sum0.Avg)
+			gate._sum2.Push(gate._sum1.Sum)
+			gate._sum3.Push(gate._sum2.Sum)
+			gate._sum4.Push(gate._sum3.Avg)
+
 			if pixelCount > detectedArea {
 				detectedArea = pixelCount
 				detectedGate = gate
 			}
 		}
+	} else {
+		for _, gate := range t.gates {
+			gate._activeValue = 0
+			gate._activeArea = 0
+			gate._sum0.Push(float64(0))
+			gate._sum1.Push(gate._sum0.Avg)
+			gate._sum2.Push(gate._sum1.Sum)
+			gate._sum3.Push(gate._sum2.Sum)
+			gate._sum4.Push(gate._sum3.Avg)
 
-		if float64(detectedArea) > float64(detectedGate._lastArea)*1.1 {
-			detectedGate._activeFrames += 1
-			detectedGate._activeValue += detectedArea
-			detectedGate._lastArea += detectedArea
-			detectedGate._inactiveFrames = 0
 		}
-
-		detectedGate._activeArea = detectedArea
-		detectedGate._lastArea = detectedArea
-
-		//fmt.Printf("*** Active: %s, area: %v, value: %v\n", detectedGate.Name, detectedArea, detectedGate._activeValue)
-
 	}
 
+	//fmt.Printf("*** Active: %s, area: %v, avg: %v, value: %v\n", t.gates[0].Name, t.gates[0]._activeArea, int(t.gates[0]._sum3.Sum), t.gates[0]._activeValue)
+
 	var peakDetected *Detection
+
 	for _, gate := range t.gates {
-		if gate != detectedGate {
+		if int(gate._sum4.First()) == 0 {
 			gate._inactiveFrames += 1
+		} else {
+			gate._inactiveFrames = 0
 		}
 
-		//fmt.Println(gate.State())
+		peakValue := gate._sum4.Peak()
+		if peakValue > gate.Config.Detection.MinActiveValue {
+			peak := &Detection{
+				FrameOffset: frameCount,
+				Activation: &Activation{
+					Gate:   gate,
+					Frames: gate._activeFrames,
+					Value:  peakValue,
+				},
+			}
+			gate._peaks = append(gate._peaks, peak)
+		}
 
-		if gate._inactiveFrames >= gate.Config.Detection.MinInactiveFrames {
+		if gate._inactiveFrames > gate.Config.Detection.MinInactiveFrames && len(gate._peaks) > 0 {
+			var highestPeak *Detection
+			var highestPeakValue float64
 
-			if peakDetected == nil {
-				if gate._activeFrames >= gate.Config.Detection.MinActiveFrames &&
-					float64(gate._activeValue) >= gate.Config.Detection.MinActiveValue {
-					//(gate.LastDetection == nil ||
-					//	(t._frameCount-gate.LastDetection.FrameOffset) > uint64(gate.Config.Detection.MinFramesBetweenPeaks))
-
-					peakDetected = &Detection{
-						FrameOffset: frameCount,
-						Activation: &Activation{
-							Gate:   gate,
-							Frames: gate._activeFrames,
-							Value:  float64(gate._activeValue),
-						},
-					}
-
-					gate.LastDetection = peakDetected
-				} else if gate._activeFrames > 0 {
-					//fmt.Printf("*** False Peak: %s, value: %v, frames: %v\n\n\n\n", gate.Name, gate._activeValue, gate._activeFrames)
+			for _, peak := range gate._peaks {
+				if peak.Activation.Value > highestPeakValue {
+					highestPeak = peak
+					highestPeakValue = peak.Activation.Value
 				}
 			}
 
-			gate._activeFrames = 0
-			gate._activeValue = 0
-			gate._lastArea = 0
+			peakDetected = highestPeak
+			gate._peaks = []*Detection{}
 		}
 	}
 

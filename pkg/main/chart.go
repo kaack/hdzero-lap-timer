@@ -7,21 +7,23 @@ import (
 	"gocv.io/x/gocv"
 )
 
-func ChartImg(cBuffer *ChartBuffer, mat *gocv.Mat) {
-
-	xValues, yValues := cBuffer.Data()
+func ChartImg(buffers []*ChartBuffer, mat *gocv.Mat) {
 
 	graph := chart.Chart{
 		Title:  "Activation Area",
 		Width:  480,
 		Height: 360,
 		DPI:    150,
-		Series: []chart.Series{
-			chart.ContinuousSeries{
-				XValues: xValues,
-				YValues: yValues,
-			},
-		},
+	}
+
+	for _, buffer := range buffers {
+		xValues, yValues := buffer.Data()
+		series := chart.ContinuousSeries{
+			XValues: xValues,
+			YValues: yValues,
+		}
+
+		graph.Series = append(graph.Series, series)
 	}
 
 	graph.Background = chart.Style{
@@ -42,27 +44,14 @@ func ChartImg(cBuffer *ChartBuffer, mat *gocv.Mat) {
 			Value: 0,
 			Label: "0",
 		}, {
-			Value: 10000,
-			Label: "10K",
-		}, {
-			Value: 20000,
-			Label: "20K",
-		}, {
-			Value: 30000,
-			Label: "30K",
-		}, {
-			Value: 40000,
-			Label: "40K",
-		}, {
-			Value: 50000,
-			Label: "50K",
+			Value: 100000,
+			Label: "100K",
 		}},
 	}
 
 	buffer := bytes.NewBuffer([]byte{})
-	graph.Render(chart.PNG, buffer)
-
-	gocv.IMDecodeIntoMat(buffer.Bytes(), gocv.IMReadAnyDepth, mat)
+	_ = graph.Render(chart.PNG, buffer)
+	_ = gocv.IMDecodeIntoMat(buffer.Bytes(), gocv.IMReadAnyDepth, mat)
 }
 
 type Point struct {
@@ -70,13 +59,20 @@ type Point struct {
 	y float64
 }
 
-func graph(dataChan chan Point, matChan chan *gocv.Mat, gMat *gocv.Mat) {
-	chartData := NewChartBuffer(100)
+func graph(dataChan chan []Point, matChan chan *gocv.Mat, gMat *gocv.Mat, gates []*Gate) {
+
+	var chartsData []*ChartBuffer
+	for range gates {
+		chartsData = append(chartsData, NewChartBuffer(100))
+	}
+
 	for {
 		select {
-		case point := <-dataChan:
-			chartData.Push(point.x, point.y)
-			ChartImg(chartData, gMat)
+		case points := <-dataChan:
+			for i := range gates {
+				chartsData[i].Push(points[i].x, points[i].y)
+			}
+			ChartImg(chartsData, gMat)
 			matChan <- gMat
 		}
 	}

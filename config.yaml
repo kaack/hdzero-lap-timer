@@ -39,9 +39,8 @@ gates:
     detection:
       lagFrames: 60
       minFramesBetweenPeaks: 360
-      minActiveValue: 2000
-      minActiveFrames: 1
-      minInactiveFrames: 15
+      minActiveValue: 5000
+      minInactiveFrames: 25
     color:
       lowerBoundHSV: [ 150, 150, 0 ]
       upperBoundHSV: [ 175, 255, 255 ]
@@ -51,9 +50,8 @@ gates:
     detection:
       lagFrames: 60
       minFramesBetweenPeaks: 360
-      minActiveValue: 3000
-      minActiveFrames: 1
-      minInactiveFrames: 5
+      minActiveValue: 5000
+      minInactiveFrames: 25
     color:
       lowerBoundHSV: [ 40, 0, 0 ]
       upperBoundHSV: [ 50, 255, 255 ]

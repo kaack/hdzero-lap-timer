@@ -28,6 +28,14 @@ type Gate struct {
 	_activeValue    int
 	_activeFrames   int
 	_inactiveFrames int
+
+	_sum0 *SumBuffer
+	_sum1 *SumBuffer
+	_sum2 *SumBuffer
+	_sum3 *SumBuffer
+	_sum4 *SumBuffer
+
+	_peaks []*Detection
 }
 
 func NewGate(name string, img gocv.Mat,
@@ -39,7 +47,14 @@ func NewGate(name string, img gocv.Mat,
 		_markerLowerBoundHSV: gocv.NewMatWithSizeFromScalar(GateColor2Scalar(config.Color.LowerBoundHSV), img.Rows(), img.Cols(), gocv.MatTypeCV8UC3),
 		_markerUpperBoundHSV: gocv.NewMatWithSizeFromScalar(GateColor2Scalar(config.Color.UpperBoundHSV), img.Rows(), img.Cols(), gocv.MatTypeCV8UC3),
 		_markerMask:          gocv.NewMatWithSize(img.Cols(), img.Rows(), gocv.MatTypeCV8UC3),
-		LastDetection:        nil,
+
+		_sum0: NewSumBuffer(10),
+		_sum1: NewSumBuffer(10),
+		_sum2: NewSumBuffer(5),
+		_sum3: NewSumBuffer(3),
+		_sum4: NewSumBuffer(3),
+
+		LastDetection: nil,
 	}
 }
 

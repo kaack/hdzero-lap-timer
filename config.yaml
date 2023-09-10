@@ -1,9 +1,20 @@
+# Set to true / false to  show / hide
+windows:
+  showDVR: true
+  showDetection: true
+  showPlot: true
+
+
+# text to speech announcements
+announcements:
+  pilotName: "One Eye" #leave this empty to not announce pilot name
+  sayLaps: true
 
 # This is used for timing calculations
 # Since the timer counts frames, it needs to know
 # the number of frames per second to get real-time values
 # This value depends on the camera mode being used, e.g. HDZero 540p90
-framesPerSec: 90
+framesPerSec: 59.97
 
 # This is used to mask the propellers if from the
 # bottom left and right corners
@@ -11,8 +22,11 @@ framesPerSec: 90
 # matches the color of a gate marker
 
 propellerMask:
-  width: 100
-  height: 100
+  width: 200
+  height: 200
+
+detection:
+  erode: 6
 
 
 # This is a list of gates that make up the track
@@ -20,21 +34,27 @@ propellerMask:
 # and it's used as reference for counting laps
 gates:
   - name: pink
+    announcements:
+      sayTransitions: false
     detection:
-      minMillisBetweenActivations: 3000
-      minActivationValue: 3000
-      minActivationFrames: 10
-      minInactivationFrames: 5
+      lagFrames: 60
+      minFramesBetweenPeaks: 360
+      minActiveValue: 2000
+      minActiveFrames: 1
+      minInactiveFrames: 15
     color:
-      lowerBoundHSV: [ 150, 150, 150 ]
-      upperBoundHSV: [ 255, 255, 255 ]
+      lowerBoundHSV: [ 150, 150, 0 ]
+      upperBoundHSV: [ 175, 255, 255 ]
   - name: green
+    announcements:
+      sayTransitions: true
     detection:
-      minMillisBetweenActivations: 3000
-      minActivationValue: 3000
-      minActivationFrames: 10
-      minInactivationFrames: 5
+      lagFrames: 60
+      minFramesBetweenPeaks: 360
+      minActiveValue: 3000
+      minActiveFrames: 1
+      minInactiveFrames: 5
     color:
-      lowerBoundHSV: [45, 45, 45]
-      upperBoundHSV: [50, 255, 255]
+      lowerBoundHSV: [ 40, 0, 0 ]
+      upperBoundHSV: [ 50, 255, 255 ]
 

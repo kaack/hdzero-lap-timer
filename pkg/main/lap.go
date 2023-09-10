@@ -21,5 +21,5 @@ func (l *Lap) Frames() int {
 }
 
 func (l *Lap) Gate() *Gate {
-	return l.start.Gate
+	return l.start.Activation.Gate
 }

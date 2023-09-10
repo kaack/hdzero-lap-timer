@@ -21,5 +21,5 @@ func (t *Transition) Frames() int {
 }
 
 func (t *Transition) Gate() *Gate {
-	return t.start.Gate
+	return t.start.Activation.Gate
 }

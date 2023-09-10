@@ -31,7 +31,7 @@ func (t *Timer) AddDetection(detection *Detection) {
 	if lastDetection != nil {
 		//process laps
 		if startGate := t.StartGate(); startGate != nil {
-			if startGate.Name == detection.Gate.Name {
+			if startGate.Name == detection.Activation.Gate.Name {
 				if startGateDetections, ok := t.DetectionsByGateName[startGate.Name]; ok && len(startGateDetections) > 0 {
 					t.Laps = append(t.Laps, NewLap(startGateDetections[len(startGateDetections)-1], detection))
 				}
@@ -46,11 +46,11 @@ func (t *Timer) AddDetection(detection *Detection) {
 	t.DetectionsInOrder = append(t.DetectionsInOrder, detection)
 
 	//track detections by gate name
-	if _, ok := t.DetectionsByGateName[detection.Gate.Name]; !ok {
-		t.DetectionsByGateName[detection.Gate.Name] = []*Detection{}
+	if _, ok := t.DetectionsByGateName[detection.Activation.Gate.Name]; !ok {
+		t.DetectionsByGateName[detection.Activation.Gate.Name] = []*Detection{}
 	}
 
-	t.DetectionsByGateName[detection.Gate.Name] = append(t.DetectionsByGateName[detection.Gate.Name], detection)
+	t.DetectionsByGateName[detection.Activation.Gate.Name] = append(t.DetectionsByGateName[detection.Activation.Gate.Name], detection)
 }
 
 func (t *Timer) StartGate() *Gate {
@@ -69,6 +69,17 @@ func (t *Timer) LastDetection() *Detection {
 	return t.DetectionsInOrder[detectionsLength-1]
 
 }
+
+func (t *Timer) LastDetectionByGate(gate *Gate) *Detection {
+
+	gateDetections := t.DetectionsByGateName[gate.Name]
+
+	if gateDetections == nil || len(gateDetections) == 0 {
+		return nil
+	}
+	return gateDetections[len(gateDetections)-1]
+}
+
 func (t *Timer) LastLap() *Lap {
 	if len(t.Laps) == 0 {
 		return nil
@@ -90,7 +101,7 @@ func (t *Timer) LastDetectedGate() *Gate {
 	if detection == nil {
 		return nil
 	}
-	return detection.Gate
+	return detection.Activation.Gate
 }
 
 func (t *Timer) LapsCount() int {

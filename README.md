@@ -47,25 +47,25 @@ You can tune the configuration parameters so that false peaks are filtered out a
 
 The following parameters can be tuned per-gate to make accurate and valid peak detections.
 
-  * **minMillisBetweenActivations**   
+  * **minFramesBetweenPeaks**   
     This is the minimum amount of time that is allowed for two consecutive detections of the same marker.
     This is useful in cases where you know more or less the expected time a lap takes, so you set this value
     to be slighter lower than the fastest lap.
 
 
-  * **minActivationValue**  (cumulative area in pixels)  
+  * **minActiveValue**  (cumulative area in pixels)  
     This is the minimum cumulative area that is required for a valid Peak. This is useful in cases where the drone
     might do a U-turn after going through a gate, and the marker is briefly visible. In this case, you can set this parameter
     to a value high enough so that the smaller peaks are ignored.
 
     
-  * **minActivationFrames** (time in frames)  
+  * **minActiveFrames** (time in frames)  
     This is how wide the peak must be so that it's considered valid. In other words, this represents how many frames the marker 
     must be visible as the drone flies toward it. The value you set this to depends on how fast the drones are. 
     For very fast drones, the marker might only be visible for a few frames.
 
 
-  * **minInactivationFrames** (time in frames)  
+  * **minInactiveFrames** (time in frames)  
     This is how many consecutive frames the marker must **not** be visible for a peak to be detected.
 
 

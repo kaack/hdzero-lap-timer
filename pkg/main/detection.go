@@ -7,8 +7,8 @@ package main
 import "fmt"
 
 type Detection struct {
-	Gate        *Gate
 	FrameOffset uint64
+	Activation  *Activation
 }
 
 func (d *Detection) Diff(detection *Detection) int64 {
@@ -16,5 +16,5 @@ func (d *Detection) Diff(detection *Detection) int64 {
 }
 
 func (d *Detection) String() string {
-	return fmt.Sprintf("gate: %s, frame: %v", d.Gate.Name, d.FrameOffset)
+	return fmt.Sprintf("detection(gate: %s, frame: %v) activation(value: %d, frames: %d)", d.Activation.Gate.Name, d.FrameOffset, int(d.Activation.Value), d.Activation.Frames)
 }

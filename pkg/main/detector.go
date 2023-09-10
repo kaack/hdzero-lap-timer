@@ -13,12 +13,9 @@ import (
 type Detector struct {
 	gates []*Gate
 
-	_millisPerFrame int
+	_millisPerFrame float64
 
-	_buff         *StreamBuffer
 	_lastSeenGate *Gate
-
-	_frameCount uint64
 
 	_markersMask   gocv.Mat
 	_img           gocv.Mat
@@ -35,17 +32,10 @@ type Detector struct {
 }
 
 func NewDetector(img gocv.Mat,
-	framesPerSec int,
-	propWidth int,
-	propHeight int) Detector {
-
-	detectionWindowInMillis := 3000
-	detectionWindowInFrames := detectionWindowInMillis / 1000 * framesPerSec
+	config *Config) Detector {
 
 	detector := Detector{
-		_millisPerFrame: 1000 / framesPerSec,
-		_buff:           NewStreamBuffer(detectionWindowInFrames),
-		_frameCount:     0,
+		_millisPerFrame: 1000 / config.FramesPerSec,
 		_lastSeenGate:   nil,
 
 		_markersMask: gocv.NewMat(),
@@ -58,18 +48,17 @@ func NewDetector(img gocv.Mat,
 
 		_pixelsByGate: map[*Gate]int{},
 
-		_leftPropPoly:  gocv.NewPointsVectorFromPoints([][]image.Point{{image.Pt(0, img.Rows()), image.Pt(0, img.Rows()-propHeight), image.Pt(propWidth, img.Rows())}}),
-		_rightPropPoly: gocv.NewPointsVectorFromPoints([][]image.Point{{image.Pt(img.Cols(), img.Rows()), image.Pt(img.Cols(), img.Rows()-propHeight), image.Pt(img.Cols()-propWidth, img.Rows())}}),
+		_leftPropPoly:  gocv.NewPointsVectorFromPoints([][]image.Point{{image.Pt(0, img.Rows()), image.Pt(0, img.Rows()-config.PropellerMask.Height), image.Pt(config.PropellerMask.Width, img.Rows())}}),
+		_rightPropPoly: gocv.NewPointsVectorFromPoints([][]image.Point{{image.Pt(img.Cols(), img.Rows()), image.Pt(img.Cols(), img.Rows()-config.PropellerMask.Height), image.Pt(img.Cols()-config.PropellerMask.Width, img.Rows())}}),
 
-		_kernel: gocv.GetStructuringElement(gocv.MorphRect, image.Pt(4, 4)),
+		_kernel: gocv.GetStructuringElement(gocv.MorphRect, image.Pt(config.Detection.Erode, config.Detection.Erode)),
 	}
 
 	return detector
 }
 
 //goland:noinspection GoUnusedParameter
-func (t *Detector) Detect(img *gocv.Mat, window *gocv.Window) *Detection {
-	t._frameCount += 1
+func (t *Detector) Detect(img *gocv.Mat, detectionMat *gocv.Mat, frameCount uint64) (*Gate, *Detection) {
 
 	// convert the image to HSV format so that we can easily isolate the markers by color ranges (mainly Hue)
 	frame := *img
@@ -102,11 +91,11 @@ func (t *Detector) Detect(img *gocv.Mat, window *gocv.Window) *Detection {
 	gocv.Erode(t._binaryImg, &t._binaryImg, t._kernel)
 	gocv.Dilate(t._binaryImg, &t._binaryImg, t._kernel)
 
-	window.IMShow(t._binaryImg)
+	t._binaryImg.CopyTo(detectionMat)
 
 	// Check if there is any gate marker in view, and identify which one (by color)
 	//
-	// First we just count how many white (non-zero) pixels the binary image image has
+	// First we just count how many white (non-zero) pixels the binary image  has
 	// this tells us the total area for all gate markers visible, but we don't know which one
 	// is closes to the drone.
 	//
@@ -118,6 +107,8 @@ func (t *Detector) Detect(img *gocv.Mat, window *gocv.Window) *Detection {
 	// through a subset of the pixel locations found earlier with the binary image
 
 	gocv.FindNonZero(t._binaryImg, &t._nonZeroPixels)
+	var detectedGate *Gate
+	var detectedArea int
 	totalArea := t._nonZeroPixels.Total()
 	if totalArea > 0 {
 		// initialize histogram to zeroes
@@ -126,7 +117,7 @@ func (t *Detector) Detect(img *gocv.Mat, window *gocv.Window) *Detection {
 		}
 
 		// sample every 10 pixels
-		for i := 0; i < totalArea; i += 10 {
+		for i := 0; i < totalArea; i += 1 {
 			location := t._nonZeroPixels.GetVeciAt(0, i)
 
 			pixel := t._hsvImg.GetVecbAt(int(location[1]), int(location[0]))
@@ -137,50 +128,73 @@ func (t *Detector) Detect(img *gocv.Mat, window *gocv.Window) *Detection {
 			}
 		}
 
-		largestPixelCount := 0
+		detectedArea = 0
 		for gate, pixelCount := range t._pixelsByGate {
-			if pixelCount > largestPixelCount {
-				largestPixelCount = pixelCount
-				t._lastSeenGate = gate
+			if pixelCount > detectedArea {
+				detectedArea = pixelCount
+				detectedGate = gate
 			}
+		}
+
+		if float64(detectedArea) > float64(detectedGate._lastArea)*1.1 {
+			detectedGate._activeFrames += 1
+			detectedGate._activeValue += detectedArea
+			detectedGate._lastArea += detectedArea
+			detectedGate._inactiveFrames = 0
+		}
+
+		detectedGate._activeArea = detectedArea
+		detectedGate._lastArea = detectedArea
+
+		//fmt.Printf("*** Active: %s, area: %v, value: %v\n", detectedGate.Name, detectedArea, detectedGate._activeValue)
+
+	}
+
+	var peakDetected *Detection
+	for _, gate := range t.gates {
+		if gate != detectedGate {
+			gate._inactiveFrames += 1
+		}
+
+		//fmt.Println(gate.State())
+
+		if gate._inactiveFrames >= gate.Config.Detection.MinInactiveFrames {
+
+			if peakDetected == nil {
+				if gate._activeFrames >= gate.Config.Detection.MinActiveFrames &&
+					float64(gate._activeValue) >= gate.Config.Detection.MinActiveValue {
+					//(gate.LastDetection == nil ||
+					//	(t._frameCount-gate.LastDetection.FrameOffset) > uint64(gate.Config.Detection.MinFramesBetweenPeaks))
+
+					peakDetected = &Detection{
+						FrameOffset: frameCount,
+						Activation: &Activation{
+							Gate:   gate,
+							Frames: gate._activeFrames,
+							Value:  float64(gate._activeValue),
+						},
+					}
+
+					gate.LastDetection = peakDetected
+				} else if gate._activeFrames > 0 {
+					//fmt.Printf("*** False Peak: %s, value: %v, frames: %v\n\n\n\n", gate.Name, gate._activeValue, gate._activeFrames)
+				}
+			}
+
+			gate._activeFrames = 0
+			gate._activeValue = 0
+			gate._lastArea = 0
 		}
 	}
 
-	if t._lastSeenGate == nil {
-		//no point in looking for peaks
-		return nil
-	}
+	return detectedGate, peakDetected
 
-	activation := t._buff.Push(float64(totalArea), t._lastSeenGate.minActivationValue, t._lastSeenGate.minActivationFrames, t._lastSeenGate.minInactivationFrames)
-	if activation == nil {
-		//no peak
-		return nil
-	}
-
-	//peak detected
-	detection := Detection{
-		Gate:        t._lastSeenGate,
-		FrameOffset: t._frameCount,
-	}
-
-	if t._lastSeenGate.lastDetection == nil {
-		return &detection
-	}
-
-	// if the detection happens too close to the previous one, ignore it
-	millisSinceLastDetection := detection.Diff(t._lastSeenGate.lastDetection) * int64(t._millisPerFrame)
-	if int(millisSinceLastDetection) < detection.Gate.minMillisBetweenActivations {
-		// ignore detection
-		return nil
-	}
-
-	return &detection
 }
 
 func (t *Detector) AddGate(gate *Gate) {
 	t.gates = append(t.gates, gate)
 }
 
-func (t *Detector) MillisPerFrame() int {
+func (t *Detector) MillisPerFrame() float64 {
 	return t._millisPerFrame
 }

@@ -13,16 +13,28 @@ import (
 	"os"
 )
 
+type WindowsConfig struct {
+	ShowDVR       bool `json:"showDVR"`
+	ShowDetection bool `json:"showDetection"`
+	ShowPlot      bool `json:"showPlot"`
+}
+
+type AnnouncementsConfig struct {
+	PilotName string `json:"pilotName"`
+	SayLaps   bool   `json:"sayLaps"`
+}
+
 type PropellerMaskConfig struct {
 	Width  int `json:"width"`
 	Height int `json:"height"`
 }
 
 type GateDetectionConfig struct {
-	MinMillisBetweenActivations int     `json:"minMillisBetweenActivations"`
-	MinActivationValue          float64 `json:"minActivationValue"`
-	MinActivationFrames         int     `json:"minActivationFrames"`
-	MinInactivationFrames       int     `json:"minInactivationFrames"`
+	LagFrames             uint64  `json:"lagFrames"`
+	MinFramesBetweenPeaks uint64  `json:"minFramesBetweenPeaks"`
+	MinActiveValue        float64 `json:"minActiveValue"`
+	MinActiveFrames       int     `json:"minActiveFrames"`
+	MinInactiveFrames     int     `json:"minInactiveFrames"`
 }
 
 type GateColorConfig struct {
@@ -30,16 +42,28 @@ type GateColorConfig struct {
 	UpperBoundHSV []int `json:"upperBoundHSV"`
 }
 
+type GateAnnouncements struct {
+	SayTransitions bool `json:"sayTransitions"`
+}
+
 type GateConfig struct {
-	Name      string              `json:"name"`
-	Detection GateDetectionConfig `json:"detection"`
-	Color     GateColorConfig     `json:"color"`
+	Name          string               `json:"name"`
+	Announcements *GateAnnouncements   `json:"announcements"`
+	Detection     *GateDetectionConfig `json:"detection"`
+	Color         *GateColorConfig     `json:"color"`
+}
+
+type DetectionConfig struct {
+	Erode int `json:"Erode"`
 }
 
 type Config struct {
-	FramesPerSec  int                 `json:"framesPerSec"`
-	PropellerMask PropellerMaskConfig `json:"propellerMask"`
-	Gates         []GateConfig        `json:"gates"`
+	Windows       *WindowsConfig       `json:"windows"`
+	Announcements *AnnouncementsConfig `json:"announcements"`
+	FramesPerSec  float64              `json:"framesPerSec"`
+	PropellerMask *PropellerMaskConfig `json:"propellerMask"`
+	Gates         []*GateConfig        `json:"gates"`
+	Detection     *DetectionConfig     `json:"detection"`
 }
 
 func YAMLtoJSON(r io.Reader) ([]byte, error) {
